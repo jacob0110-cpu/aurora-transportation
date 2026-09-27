@@ -55,6 +55,15 @@
             box-shadow: 0 4px 15px rgba(13, 148, 136, 0.3);
         }
 
+        /* 待辦提醒專區 */
+        .todo-section {
+            background: #FEF2F2; border-radius: 16px; padding: 16px; margin-bottom: 20px;
+            border: 1px solid #FEE2E2; border-left: 4px solid #EF4444; box-shadow: 0 2px 10px rgba(0,0,0,0.03);
+        }
+        .todo-title { font-weight: 700; color: #991B1B; margin-bottom: 10px; font-size: 1.05em; display: flex; align-items: center; gap: 6px; }
+        .todo-item { font-size: 0.9em; color: #7F1D1D; line-height: 1.6; margin-bottom: 8px; border-bottom: 1px dashed #FCA5A5; padding-bottom: 8px; }
+        .todo-item:last-child { margin-bottom: 0; border-bottom: none; padding-bottom: 0; }
+
         /* 航班追蹤與載入按鈕 */
         .track-btn { display: flex; align-items: center; justify-content: center; gap: 8px; background: #EFF6FF; color: #2563EB; padding: 12px; border-radius: 12px; text-decoration: none; font-weight: 600; font-size: 0.9em; border: 1px solid #BFDBFE; transition: all 0.2s; cursor: pointer; }
         .track-btn:active { background: #DBEAFE; transform: scale(0.98); }
@@ -111,7 +120,7 @@
             .page.active { display: block !important; page-break-after: avoid; }
             body.print-all .page { display: block !important; page-break-after: always; }
             body.print-all .page:last-child { page-break-after: auto; }
-            .controls, .btn-camera, .btn-remove-photo, .save-status, .track-btn, .dashboard-widget { display: none !important; }
+            .controls, .btn-camera, .btn-remove-photo, .save-status, .track-btn, .dashboard-widget, .todo-section { display: none !important; }
             .editable-field, .user-input-section textarea { border: 1px solid #000; background: #fff; height: auto; }
             .photo-item { page-break-inside: avoid; }
         }
@@ -135,26 +144,26 @@
 </div>
 
 <script>
-    // 原始行程資料
+    // 依據最新截圖精確更新的行程資料
     const transports = [
         {
             date: "10/12 (一) - 10/13 (二)", type: "✈️ 國際航班 (去程)", route: "台北 (TPE) ➔ 慕尼黑 (MUC)",
-            carrier: "長榮航空 (EVA Air) BR071", bookingRef: "待確認", departTime: "23:25", departLoc: "桃園國際機場 (TPE) - T2",
-            arriveTime: "07:35 (+1)", arriveLoc: "慕尼黑機場 (MUC) - T2", seats: "商務艙 D", notes: "飛行總時間約 14h 10m。"
+            carrier: "長榮航空 (EVA Air) BR071", bookingRef: "-", departTime: "23:25", departLoc: "桃園國際機場 (TPE) - T2",
+            arriveTime: "07:35 (+1)", arriveLoc: "慕尼黑機場 (MUC) - T2", seats: "-", notes: "飛行總時間約 14h 10m。\n機型/艙等：波音777 商務艙 D"
         },
         {
             date: "10/13 (二)", type: "✈️ 歐洲內陸航班", route: "慕尼黑 (MUC) ➔ 奧斯陸 (OSL)",
-            carrier: "漢莎航空 (Lufthansa) LH 2456", bookingRef: "9JPE61 (Yako/Kueiching)\n7A2LEA (Danny)\n7AAGM4 (Fang)",
+            carrier: "漢莎航空 (Lufthansa) LH 2456", bookingRef: "9JPE6I",
             departTime: "19:50", departLoc: "慕尼黑機場 (MUC) - T2", arriveTime: "22:05", arriveLoc: "奧斯陸加勒穆恩機場 (OSL)",
-            seats: "23A, 23B (Yako/Kueiching)\n22A, 22B (Hsuhsiu/Hsunyi)\n21A, 21B (Danny/Fang)",
-            notes: "經濟艙 (Economy Classic)。\n行李：1件 8kg 隨身 + 1件 23kg 託運。\nDanny, Fang, Yako, Kueiching 皆已額外加購一件 23kg 託運行李 (65 EUR)。"
+            seats: "Yako Lai / Kueiching Wang : 23A,23B | Hsuhsiu Lee / Hsunyi Wang : 22A,22B | Tengchun Yang / Shu Fang : 21A,21B",
+            notes: "機型/艙等：Airbus A320 經濟艙。\n分組票價：685.54 + 685.54 + 342.46 + 343.49 EUR"
         },
         {
             date: "10/15 (四)", type: "✈️ 挪威國內航班", route: "奧斯陸 (OSL) ➔ 博德 (BOO)",
-            carrier: "北歐航空 (SAS) SK 4106", bookingRef: "117-2545955864 (Danny)\n117-2545955873 (Fang)",
+            carrier: "北歐航空 (SAS) SK 4106", bookingRef: "-",
             departTime: "11:45", departLoc: "奧斯陸加勒穆恩機場 (OSL)", arriveTime: "13:10", arriveLoc: "博德機場 (BOO)",
-            seats: "5A, 5B (Yako/Kueiching)\n5E, 5F (Hsuhsiu/Hsunyi)\n6A (Danny), 6B (Fang)",
-            notes: "票種為 Standard。\n包含 1 件隨身小包 (Underseat bag) + 1 件登機箱 (Carry-on) + 1 件託運行李。"
+            seats: "Yako Lai / Kueiching Wang : 5A,5B | Hsuhsiu Lee / Hsunyi Wang : 5E,5F | Tengchun Yang / Shu Fang : 6A,6B",
+            notes: "機型/艙等：- Standard。\n分組票價：179.00 + 172.26 + 86.13 + 87.81 EUR"
         },
         {
             date: "10/15 (四) - 10/18 (日)", type: "🚗 羅弗敦群島自駕", route: "博德 (BOO) ➔ 斯沃爾韋爾 (SVJ)",
@@ -166,7 +175,7 @@
             date: "10/15 (四)", type: "⛴️ 跨海渡輪", route: "博德 (Bodø) ➔ 莫斯克內斯 (Moskenes)",
             carrier: "TORGHATTEN", bookingRef: "CFGKELZY", departTime: "16:45", departLoc: "博德渡輪碼頭 (Bodø ferjekai)",
             arriveTime: "20:00", arriveLoc: "莫斯克內斯渡輪碼頭 (Moskenes ferjekai)", seats: "成人票 (含座位預訂)",
-            notes: "訂票人：KUEI CHING WANG。票號包含 BLYP37L3 等。\n航線：Bodø-Røst-Værøy-Moskenes。\n⚠️ 提醒：車內所有旅客須在登船前透過線上完成資訊登錄。"
+            notes: "訂票人：KUEI CHING WANG。\n航線：Bodø-Røst-Værøy-Moskenes。\n⚠️ 提醒：車內所有旅客須在登船前透過線上完成資訊登錄。"
         },
         {
             date: "10/18 (日) - 10/19 (一)", type: "🚢 郵輪航程 (北行)", route: "斯沃爾韋爾 (SVJ) ➔ 特羅姆瑟 (TOS)",
@@ -177,8 +186,8 @@
         {
             date: "10/21 (三)", type: "✈️ 歐洲內陸航班", route: "特羅姆瑟 (TOS) ➔ 羅瓦涅米 (RVN)",
             carrier: "芬蘭航空 (Finnair) AY 0542", bookingRef: "9KAWJB", departTime: "10:30", departLoc: "特羅姆瑟機場 (TOS)",
-            arriveTime: "12:50", arriveLoc: "羅瓦涅米機場 (RVN)", seats: "未選位",
-            notes: "票號 105-2493231164 等。\n行李：1件 23kg 託運 + 1件 8kg 手提行李。\n起飛前 36 小時可線上 Check-in。"
+            arriveTime: "12:50", arriveLoc: "羅瓦涅米機場 (RVN)", seats: "尚未選位（訂位系統未顯示座位號碼）",
+            notes: "機型/艙等：- 經濟艙 N\n分組票價：4,588.00 + 4,616.00 + 2,328.00 + 2,351.00 NOK。\n⚠️ 提醒：尚未選位，記得提早辦理。"
         },
         {
             date: "10/22 (四) - 10/23 (五)", type: "🚆 芬蘭國鐵 VR (北極特快車)", route: "羅瓦涅米 (RVN) ➔ 赫爾辛基 (HEL)",
@@ -188,14 +197,15 @@
         },
         {
             date: "10/26 (一)", type: "✈️ 歐洲內陸航班", route: "赫爾辛基 (HEL) ➔ 慕尼黑 (MUC)",
-            carrier: "漢莎航空 (Lufthansa) LH 2461", bookingRef: "9JPE61 (Yako/Kueiching)\n7A2LEA (Danny)\n7AAGM4 (Fang)",
-            departTime: "12:45", departLoc: "赫爾辛基萬塔機場 (HEL)", arriveTime: "14:25", arriveLoc: "慕尼黑機場 (MUC) - T2",
-            seats: "8A, 8B (Yako/Kueiching)\n8F, 8E (Hsuhsiu/Hsunyi)\n9A (Danny), 9B (Fang)", notes: "經濟艙 (Economy Classic)。機上提供零食。"
+            carrier: "漢莎航空 (Lufthansa) LH 2461", bookingRef: "9JPE6I", departTime: "12:45",
+            departLoc: "赫爾辛基萬塔機場 (HEL)", arriveTime: "14:25", arriveLoc: "慕尼黑機場 (MUC) - T2",
+            seats: "Yako Lai / Kueiching Wang : 8A,8B | Hsuhsiu Lee / Hsunyi Wang : 8F,8E | Tengchun Yang / Shu Fang : 9A,9B",
+            notes: "機型/艙等：Airbus A321neo 經濟艙。\n票價已含於去程票價中。"
         },
         {
             date: "10/27 (二) - 10/28 (三)", type: "✈️ 國際航班 (回程)", route: "慕尼黑 (MUC) ➔ 台北 (TPE)",
-            carrier: "長榮航空 (EVA Air) BR072", bookingRef: "待確認", departTime: "11:30", departLoc: "慕尼黑機場 (MUC) - T2",
-            arriveTime: "06:30 (+1)", arriveLoc: "桃園國際機場 (TPE) - T2", seats: "商務艙 D", notes: "飛行總時間約 12h 00m。"
+            carrier: "長榮航空 (EVA Air) BR072", bookingRef: "-", departTime: "11:30", departLoc: "慕尼黑機場 (MUC) - T2",
+            arriveTime: "06:30 (+1)", arriveLoc: "桃園國際機場 (TPE) - T2", seats: "-", notes: "飛行總時間約 12h 00m。\n機型/艙等：波音777 商務艙 D"
         }
     ];
 
@@ -205,7 +215,6 @@
     let saveTimeout;
     let countdownInterval;
 
-    // 防抖與本機儲存
     function debounce(func, wait) {
         let timeout;
         return function(...args) { clearTimeout(timeout); timeout = setTimeout(() => func.apply(this, args), wait); };
@@ -225,14 +234,12 @@
         }
     }
 
-    // 首頁儀表板 Widget 初始化 (支援倒數與出發後天數切換)
+    // 首頁儀表板 Widget 初始化
     function initDashboardWidget() {
-        // 1. 日期
         const now = new Date();
         const dateStr = now.toLocaleDateString('zh-TW', { month: 'short', day: 'numeric', weekday: 'long' });
         document.getElementById('widget-date').innerText = dateStr;
 
-        // 2. 出發倒數或出發天數切換 (設定出發時間：2026/10/12 23:25)
         const departureDate = new Date('2026-10-12T23:25:00+08:00').getTime();
         clearInterval(countdownInterval);
         
@@ -244,7 +251,6 @@
             if (!el || !labelEl) return;
 
             if (diff > 0) {
-                // 出發前：顯示精準倒數
                 labelEl.innerText = "✈️ 距離出發 (10/12 23:25) 還有";
                 const d = Math.floor(diff / (1000 * 60 * 60 * 24));
                 const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
@@ -252,7 +258,6 @@
                 const s = Math.floor((diff % (1000 * 60)) / 1000);
                 el.innerText = `${d} 天 ${h} 時 ${m} 分 ${s} 秒`;
             } else {
-                // 出發後：計算已出發第幾天
                 labelEl.innerText = "🎉 旅途進行中";
                 const passedDiff = Math.abs(diff);
                 const passedDays = Math.floor(passedDiff / (1000 * 60 * 60 * 24)) + 1;
@@ -260,18 +265,16 @@
             }
         }, 1000);
 
-        // 3. 獲取地理位置與氣象
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(
                 (position) => fetchWeather(position.coords.latitude, position.coords.longitude),
-                (error) => fetchWeather(25.0330, 121.5654) // 預設使用台北座標
+                (error) => fetchWeather(25.0330, 121.5654)
             );
         } else {
             fetchWeather(25.0330, 121.5654);
         }
     }
 
-    // 呼叫免費氣象 API (Open-Meteo) 與定位 API
     async function fetchWeather(lat, lon) {
         try {
             const geoRes = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=zh-tw`);
@@ -305,7 +308,6 @@
         }
     }
 
-    // 模擬擷取航班資料
     function simulateFetchFlightData(index, flightNum) {
         const btn = document.getElementById(`autofill-btn-${index}`);
         const originalText = btn.innerHTML;
@@ -334,7 +336,6 @@
         }, 1500);
     }
 
-    // 圖片處理與儲存
     function readFileAsDataURL(file) {
         return new Promise((resolve, reject) => {
             const reader = new FileReader(); reader.onload = e => resolve(e.target.result);
@@ -408,7 +409,7 @@
             summaryListHTML += '</div>';
         });
 
-        // 儀表板 Widget 樣版
+        // 儀表板 Widget
         let dashboardWidgetHTML = `
             <div class="dashboard-widget">
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px;">
@@ -428,8 +429,22 @@
             </div>
         `;
 
+        // 尚未辦理事項提醒專區
+        let todoSectionHTML = `
+            <div class="todo-section">
+                <div class="todo-title">🚨 交通預訂與選位提醒 (尚未辦理)</div>
+                <div class="todo-item">
+                    <b>10/24 (六)</b> 赫爾辛基 ⇄ 塔林跨國渡輪尚未預訂 — 建議儘速選擇 Tallink Silja、Viking Line 或 Eckerö Line 班次，並預留港口報到與通關時間。
+                </div>
+                <div class="todo-item">
+                    <b>10/21 (三)</b> 芬蘭航空 <b>AY0542</b> (特羅姆瑟 ➔ 羅瓦涅米) 尚未選位，記得提早上網劃位。
+                </div>
+            </div>
+        `;
+
         html += '<div class="page active" id="page-0">' +
                 dashboardWidgetHTML +
+                todoSectionHTML +
                 '<h2 class="route-title" style="margin-top: 25px;">🗺️ 北歐跨國交通總覽</h2>' +
                 '<div class="info-card">' +
                 '<h3 style="margin-top:0; margin-bottom:15px; color:#1E293B; font-size:1.1em;">🚆 行程明細表</h3>' +
@@ -519,11 +534,11 @@
 
                         <div class="info-row">
                             <span class="info-label">✏️ 訂位代號 / 憑證號</span>
-                            <textarea class="editable-field" id="ref-${index}" oninput="debouncedSaveData(${index}, 'ref', this.value)" placeholder="請輸入訂位代號..."></textarea>
+                            <textarea class="editable-field" id="bookRef-${index}" oninput="debouncedSaveData(${index}, 'bookRef', this.value)" placeholder="請輸入訂位代號..."></textarea>
                         </div>
                         <div class="info-row" style="border-bottom: none; padding-bottom: 0;">
                             <span class="info-label">✏️ 座位 / 艙房分配</span>
-                            <textarea class="editable-field" id="seat-${index}" oninput="debouncedSaveData(${index}, 'seat', this.value)" placeholder="請輸入座位資訊..."></textarea>
+                            <textarea class="editable-field" id="seatAlloc-${index}" oninput="debouncedSaveData(${index}, 'seatAlloc', this.value)" placeholder="請輸入座位資訊..."></textarea>
                         </div>
                     </div>
 
@@ -551,16 +566,16 @@
         
         container.innerHTML = html;
 
-        // 載入所有欄位的資料
+        // 🌟 強制繞過舊的 local storage 載入最新的代號與座位分配
         transports.forEach((item, index) => {
-            const fields = ['ref', 'seat', 'note', 'terminal', 'gate', 'boarding'];
+            const fields = ['bookRef', 'seatAlloc', 'note', 'terminal', 'gate', 'boarding'];
             fields.forEach(f => {
                 const val = localStorage.getItem(`trans-${f}-${index}`);
                 const el = document.getElementById(`${f}-${index}`);
                 if (val !== null && el) {
                     el.value = val;
-                } else if (val === null && el && (f === 'ref' || f === 'seat')) {
-                    el.value = f === 'ref' ? item.bookingRef : item.seats;
+                } else if (val === null && el && (f === 'bookRef' || f === 'seatAlloc')) {
+                    el.value = f === 'bookRef' ? item.bookingRef : item.seats;
                 }
             });
 
@@ -570,7 +585,6 @@
 
         updateButtons();
         
-        // 如果是首頁，初始化儀表板
         if (currentPage === 0) {
             initDashboardWidget();
         }
@@ -603,7 +617,6 @@
         }
     }
 
-    // 觸控滑動手勢
     let touchStartX = 0; let touchEndX = 0;
     const appContainer = document.querySelector('.app-container');
     appContainer.addEventListener('touchstart', e => { touchStartX = e.changedTouches[0].screenX; }, {passive: true});
