@@ -219,21 +219,16 @@
         }
     });
 
-    // 🌟 修改：自動偵測設備，手機使用跳轉登入以避開彈出視窗阻擋
+    // 🌟 全面改用 Popup，並加入手機端防呆提示
     function signInWithGoogle() { 
-        if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
-            auth.signInWithRedirect(googleProvider);
-        } else {
-            auth.signInWithPopup(googleProvider).catch(err => alert("登入失敗：" + err.message));
-        }
+        auth.signInWithPopup(googleProvider).catch(err => {
+            if (err.code === 'auth/popup-blocked') {
+                alert("⚠️ 登入視窗被手機阻擋了！\n\n1. 請不要在 LINE 或 FB 內直接開啟，請點擊右上角「使用 Safari/預設瀏覽器開啟」。\n2. 若您已經在使用 Safari，請至手機「設定 > Safari」暫時關閉「阻擋彈出式視窗」。");
+            } else {
+                alert("登入發生錯誤：" + err.message);
+            }
+        });
     }
-
-    // 🌟 捕捉手機端跳轉登入後的潛在錯誤
-    auth.getRedirectResult().catch(err => {
-        if (err.code !== 'auth/redirect-cancelled-by-user') {
-            alert("手機登入發生錯誤：" + err.message);
-        }
-    });
 
     function signOut() { auth.signOut().then(() => document.getElementById('sync-status').innerText = ''); }
 
