@@ -48,6 +48,13 @@
         
         .route-title { font-size: 1.4em; color: #0F172A; margin: 0 0 15px 0; line-height: 1.4; display: flex; align-items: center; gap: 10px; }
 
+        /* 首頁儀表板 Widget */
+        .dashboard-widget {
+            background: linear-gradient(135deg, #0F766E, #0D9488);
+            color: white; border-radius: 16px; padding: 18px; margin-bottom: 20px;
+            box-shadow: 0 4px 15px rgba(13, 148, 136, 0.3);
+        }
+
         /* 航班追蹤與載入按鈕 */
         .track-btn { display: flex; align-items: center; justify-content: center; gap: 8px; background: #EFF6FF; color: #2563EB; padding: 12px; border-radius: 12px; text-decoration: none; font-weight: 600; font-size: 0.9em; border: 1px solid #BFDBFE; transition: all 0.2s; cursor: pointer; }
         .track-btn:active { background: #DBEAFE; transform: scale(0.98); }
@@ -104,7 +111,7 @@
             .page.active { display: block !important; page-break-after: avoid; }
             body.print-all .page { display: block !important; page-break-after: always; }
             body.print-all .page:last-child { page-break-after: auto; }
-            .controls, .btn-camera, .btn-remove-photo, .save-status, .track-btn { display: none !important; }
+            .controls, .btn-camera, .btn-remove-photo, .save-status, .track-btn, .dashboard-widget { display: none !important; }
             .editable-field, .user-input-section textarea { border: 1px solid #000; background: #fff; height: auto; }
             .photo-item { page-break-inside: avoid; }
         }
@@ -196,6 +203,7 @@
     const totalPages = transports.length + 1;
     const container = document.getElementById('transport-book');
     let saveTimeout;
+    let countdownInterval;
 
     // 防抖與本機儲存
     function debounce(func, wait) {
@@ -214,6 +222,86 @@
         if (statusEl) {
             statusEl.innerText = "✓ 已存至本機"; statusEl.style.opacity = 1;
             clearTimeout(saveTimeout); saveTimeout = setTimeout(() => { statusEl.style.opacity = 0; }, 2000);
+        }
+    }
+
+    // 首頁儀表板 Widget 初始化 (支援倒數與出發後天數切換)
+    function initDashboardWidget() {
+        // 1. 日期
+        const now = new Date();
+        const dateStr = now.toLocaleDateString('zh-TW', { month: 'short', day: 'numeric', weekday: 'long' });
+        document.getElementById('widget-date').innerText = dateStr;
+
+        // 2. 出發倒數或出發天數切換 (設定出發時間：2026/10/12 23:25)
+        const departureDate = new Date('2026-10-12T23:25:00+08:00').getTime();
+        clearInterval(countdownInterval);
+        
+        countdownInterval = setInterval(() => {
+            const current = new Date().getTime();
+            const diff = departureDate - current;
+            const el = document.getElementById('widget-countdown');
+            const labelEl = document.getElementById('widget-countdown-label');
+            if (!el || !labelEl) return;
+
+            if (diff > 0) {
+                // 出發前：顯示精準倒數
+                labelEl.innerText = "✈️ 距離出發 (10/12 23:25) 還有";
+                const d = Math.floor(diff / (1000 * 60 * 60 * 24));
+                const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                const s = Math.floor((diff % (1000 * 60)) / 1000);
+                el.innerText = `${d} 天 ${h} 時 ${m} 分 ${s} 秒`;
+            } else {
+                // 出發後：計算已出發第幾天
+                labelEl.innerText = "🎉 旅途進行中";
+                const passedDiff = Math.abs(diff);
+                const passedDays = Math.floor(passedDiff / (1000 * 60 * 60 * 24)) + 1;
+                el.innerText = `出發第 ${passedDays} 天`;
+            }
+        }, 1000);
+
+        // 3. 獲取地理位置與氣象
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (position) => fetchWeather(position.coords.latitude, position.coords.longitude),
+                (error) => fetchWeather(25.0330, 121.5654) // 預設使用台北座標
+            );
+        } else {
+            fetchWeather(25.0330, 121.5654);
+        }
+    }
+
+    // 呼叫免費氣象 API (Open-Meteo) 與定位 API
+    async function fetchWeather(lat, lon) {
+        try {
+            const geoRes = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=zh-tw`);
+            const geoData = await geoRes.json();
+            const locationEl = document.getElementById('widget-location');
+            if (locationEl) locationEl.innerText = `📍 ${geoData.city || geoData.locality || '未知位置'}`;
+
+            const weatherRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`);
+            const weatherData = await weatherRes.json();
+            const temp = Math.round(weatherData.current_weather.temperature);
+            const code = weatherData.current_weather.weathercode;
+            
+            const wCodeMap = {
+                0: '☀️ 晴朗', 1: '🌤️ 晴時多雲', 2: '⛅ 多雲', 3: '☁️ 陰天',
+                45: '🌫️ 霧', 48: '🌫️ 霧', 51: '🌧️ 毛毛雨', 53: '🌧️ 毛毛雨', 55: '🌧️ 毛毛雨',
+                61: '🌧️ 陣雨', 63: '🌧️ 雨', 65: '🌧️ 大雨', 71: '❄️ 雪', 73: '❄️ 雪', 75: '❄️ 大雪',
+                95: '⛈️ 雷雨'
+            };
+            const wDesc = wCodeMap[code] || '🌤️ 未知氣象';
+            
+            const tempEl = document.getElementById('widget-temp');
+            const descEl = document.getElementById('widget-weather-desc');
+            if (tempEl) tempEl.innerText = `${temp}°C`;
+            if (descEl) descEl.innerText = wDesc;
+
+        } catch (e) {
+            const locationEl = document.getElementById('widget-location');
+            const tempEl = document.getElementById('widget-temp');
+            if (locationEl) locationEl.innerText = "📍 台北市 (預設)";
+            if (tempEl) tempEl.innerText = "--°C";
         }
     }
 
@@ -320,8 +408,29 @@
             summaryListHTML += '</div>';
         });
 
+        // 儀表板 Widget 樣版
+        let dashboardWidgetHTML = `
+            <div class="dashboard-widget">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px;">
+                    <div>
+                        <div style="font-size: 0.9em; opacity: 0.9; margin-bottom: 4px;" id="widget-date">日期載入中...</div>
+                        <div style="font-size: 1.1em; font-weight: 700; display: flex; align-items: center; gap: 4px;" id="widget-location">📍 位置載入中...</div>
+                    </div>
+                    <div style="text-align: right;">
+                        <div style="font-size: 2.2em; font-weight: 700; line-height: 1; margin-bottom: 4px;" id="widget-temp">--°C</div>
+                        <div style="font-size: 0.9em; opacity: 0.9;" id="widget-weather-desc">--</div>
+                    </div>
+                </div>
+                <div style="background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(5px); padding: 12px; border-radius: 12px; text-align: center;">
+                    <div style="font-size: 0.85em; opacity: 0.9; margin-bottom: 4px;" id="widget-countdown-label">✈️ 距離出發還有</div>
+                    <div style="font-size: 1.3em; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: 1px;" id="widget-countdown">計算中...</div>
+                </div>
+            </div>
+        `;
+
         html += '<div class="page active" id="page-0">' +
-                '<h2 class="route-title">🗺️ 北歐跨國交通總覽</h2>' +
+                dashboardWidgetHTML +
+                '<h2 class="route-title" style="margin-top: 25px;">🗺️ 北歐跨國交通總覽</h2>' +
                 '<div class="info-card">' +
                 '<h3 style="margin-top:0; margin-bottom:15px; color:#1E293B; font-size:1.1em;">🚆 行程明細表</h3>' +
                 summaryListHTML +
@@ -342,7 +451,6 @@
             if (item.type.includes('🚢') || item.type.includes('⛴️')) { icon = '⚓'; arriveIcon = '⚓'; }
             if (item.type.includes('🚗')) { icon = '🚘'; arriveIcon = '🚘'; }
 
-            // 判斷如果是飛機，就加入追蹤按鈕與三個登機相關的輸入欄位
             let flightActionGroup = '';
             let gateBoardingHTML = '';
 
@@ -452,7 +560,6 @@
                 if (val !== null && el) {
                     el.value = val;
                 } else if (val === null && el && (f === 'ref' || f === 'seat')) {
-                    // 若沒有存過，回填原始預設資料
                     el.value = f === 'ref' ? item.bookingRef : item.seats;
                 }
             });
@@ -462,6 +569,11 @@
         });
 
         updateButtons();
+        
+        // 如果是首頁，初始化儀表板
+        if (currentPage === 0) {
+            initDashboardWidget();
+        }
     }
 
     function updateButtons() {
@@ -477,6 +589,7 @@
             currentPage++;
             document.getElementById(`page-${currentPage}`).classList.add('active');
             updateButtons();
+            if (currentPage === 0) initDashboardWidget();
         }
     }
 
@@ -486,6 +599,7 @@
             currentPage--;
             document.getElementById(`page-${currentPage}`).classList.add('active');
             updateButtons();
+            if (currentPage === 0) initDashboardWidget();
         }
     }
 
