@@ -3,7 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>北歐旅遊全交通手冊</title>
+    <title>北歐旅遊全交通手冊 (個人專屬雲端版)</title>
+    
+    <!-- 載入 Firebase 核心 SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-storage-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-auth-compat.js"></script>
+    
     <style>
         html, body {
             margin: 0; padding: 0; width: 100%; height: 100%;
@@ -22,9 +29,19 @@
         .header-title {
             background-color: #0F766E; padding: 16px;
             padding-top: max(16px, env(safe-area-inset-top));
-            text-align: center; font-size: 1.2em; font-weight: 700;
+            display: flex; justify-content: space-between; align-items: center;
             color: #FFFFFF; flex-shrink: 0; z-index: 10;
         }
+        .header-title span { font-size: 1.2em; font-weight: 700; }
+        
+        /* 雲端同步按鈕 */
+        .btn-sync {
+            background: #0D9488; border: 1px solid #2DD4BF; color: white;
+            padding: 6px 12px; border-radius: 20px; font-size: 0.85em; font-weight: 600;
+            cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex; align-items: center; gap: 4px;
+        }
+        .btn-sync:active { background: #115E59; }
 
         .content-scroll {
             flex: 1; overflow-y: auto; position: relative;
@@ -35,6 +52,7 @@
 
         .page { display: none; padding: 24px; animation: fadeIn 0.3s ease-in-out; }
         .page.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         
         .type-badge {
             display: inline-flex; align-items: center; gap: 6px;
@@ -43,106 +61,67 @@
             margin-bottom: 15px; box-shadow: 0 2px 6px rgba(13, 148, 136, 0.3);
         }
         
-        .route-title {
-            font-size: 1.4em; color: #0F172A; margin: 0 0 20px 0;
-            line-height: 1.4; display: flex; align-items: center; gap: 10px;
-        }
+        .route-title { font-size: 1.4em; color: #0F172A; margin: 0 0 15px 0; line-height: 1.4; display: flex; align-items: center; gap: 10px; }
 
-        .info-card {
-            background: #FFFFFF; border-radius: 16px; padding: 16px;
-            margin-bottom: 16px; border: 1px solid #F1F5F9;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.03);
-        }
+        /* 航班追蹤與載入按鈕 */
+        .track-btn { display: flex; align-items: center; justify-content: center; gap: 8px; background: #EFF6FF; color: #2563EB; padding: 12px; border-radius: 12px; text-decoration: none; font-weight: 600; font-size: 0.9em; border: 1px solid #BFDBFE; transition: all 0.2s; cursor: pointer; }
+        .track-btn:active { background: #DBEAFE; transform: scale(0.98); }
+        .btn-auto-fill { background: #F0FDF4; color: #16A34A; border-color: #BBF7D0; }
+        .btn-auto-fill:active { background: #DCFCE7; }
+        .btn-auto-fill:disabled { opacity: 0.7; cursor: not-allowed; }
 
+        .info-card { background: #FFFFFF; border-radius: 16px; padding: 16px; margin-bottom: 16px; border: 1px solid #F1F5F9; box-shadow: 0 2px 10px rgba(0,0,0,0.03); }
         .timeline-box { display: flex; flex-direction: column; gap: 15px; position: relative; }
-        .timeline-box::before {
-            content: ''; position: absolute; left: 20px; top: 25px; bottom: 25px;
-            width: 2px; background-color: #E2E8F0; z-index: 1;
-        }
+        .timeline-box::before { content: ''; position: absolute; left: 20px; top: 25px; bottom: 25px; width: 2px; background-color: #E2E8F0; z-index: 1; }
         .time-point { display: flex; gap: 15px; align-items: flex-start; position: relative; z-index: 2; }
-        .time-icon {
-            width: 40px; height: 40px; border-radius: 50%; background-color: #F0FDFA;
-            color: #0D9488; display: flex; justify-content: center; align-items: center;
-            font-size: 1.2em; flex-shrink: 0; border: 2px solid #FFFFFF;
-        }
+        .time-icon { width: 40px; height: 40px; border-radius: 50%; background-color: #F0FDFA; color: #0D9488; display: flex; justify-content: center; align-items: center; font-size: 1.2em; flex-shrink: 0; border: 2px solid #FFFFFF; }
         .time-details { flex: 1; }
         .time-label { font-size: 0.85em; color: #64748B; margin-bottom: 4px; }
         .time-value { font-size: 1.2em; font-weight: 700; color: #1E293B; }
         .location-value { font-size: 0.95em; color: #475569; margin-top: 4px; }
 
-        .info-row {
-            display: flex; justify-content: space-between; margin-bottom: 12px;
-            font-size: 0.95em; border-bottom: 1px solid #F1F5F9; padding-bottom: 12px;
-            flex-direction: column; gap: 6px;
-        }
+        .info-row { display: flex; justify-content: space-between; margin-bottom: 12px; font-size: 0.95em; border-bottom: 1px solid #F1F5F9; padding-bottom: 12px; flex-direction: column; gap: 6px; }
         .info-row:last-child { margin-bottom: 0; border-bottom: none; padding-bottom: 0; }
         .info-label { color: #64748B; font-weight: 600; display: flex; justify-content: space-between; }
         .info-value-static { font-weight: 600; color: #1E293B; }
         
-        .editable-field {
-            width: 100%; box-sizing: border-box; padding: 10px; border: 1px solid #CBD5E1; 
-            border-radius: 8px; font-size: 0.95em; color: #0F766E; background: #FAFAFA; 
-            font-family: inherit; font-weight: 600; resize: vertical; min-height: 42px;
-            transition: all 0.2s;
-        }
+        .editable-field { width: 100%; box-sizing: border-box; padding: 10px; border: 1px solid #CBD5E1; border-radius: 8px; font-size: 0.95em; color: #0F766E; background: #FAFAFA; font-family: inherit; font-weight: 600; resize: vertical; min-height: 42px; transition: all 0.2s; }
+        input.editable-field { min-height: 20px; }
         .editable-field:focus { outline: none; border-color: #0D9488; background: #FFFFFF; box-shadow: 0 0 0 2px rgba(13, 148, 136, 0.1); }
 
-        .notes-section {
-            font-size: 0.95em; color: #334155; line-height: 1.6;
-            background: #FFFBEB; padding: 16px; border-radius: 12px;
-            margin-bottom: 16px; border-left: 4px solid #F59E0B;
-        }
-
+        .notes-section { font-size: 0.95em; color: #334155; line-height: 1.6; background: #FFFBEB; padding: 16px; border-radius: 12px; margin-bottom: 16px; border-left: 4px solid #F59E0B; }
+        
         .user-input-section { margin-bottom: 16px; position: relative; }
-        .user-input-section textarea {
-            width: 100%; height: 80px; padding: 12px; box-sizing: border-box;
-            border-radius: 12px; border: 2px dashed #94A3B8;
-            background-color: #FFFFFF; font-family: inherit; font-size: 0.95em;
-            color: #1E293B; resize: vertical; transition: border-color 0.2s;
-        }
+        .user-input-section textarea { width: 100%; height: 80px; padding: 12px; box-sizing: border-box; border-radius: 12px; border: 2px dashed #94A3B8; background-color: #FFFFFF; font-family: inherit; font-size: 0.95em; color: #1E293B; resize: vertical; transition: border-color 0.2s; }
         .user-input-section textarea:focus { outline: none; border-color: #0D9488; }
-        
-        .save-status {
-            position: absolute; right: 12px; bottom: 12px; font-size: 0.75em;
-            color: #10B981; opacity: 0; transition: opacity 0.3s; pointer-events: none;
-        }
+        .save-status { position: absolute; right: 12px; bottom: 12px; font-size: 0.75em; color: #10B981; opacity: 0; transition: opacity 0.3s; pointer-events: none; font-weight: bold; }
 
-        .photo-section {
-            background: #FFFFFF; border-radius: 16px; padding: 16px; margin-bottom: 16px;
-            border: 1px solid #F1F5F9; box-shadow: 0 2px 10px rgba(0,0,0,0.03);
-        }
-        .btn-camera {
-            background: #0D9488; color: white; border: none; padding: 12px; border-radius: 12px;
-            font-weight: 600; font-size: 0.95em; width: 100%; cursor: pointer; display: flex;
-            align-items: center; justify-content: center; gap: 8px; transition: background 0.2s;
-        }
+        .photo-section { background: #FFFFFF; border-radius: 16px; padding: 16px; margin-bottom: 16px; border: 1px solid #F1F5F9; box-shadow: 0 2px 10px rgba(0,0,0,0.03); }
+        .btn-camera { background: #0D9488; color: white; border: none; padding: 12px; border-radius: 12px; font-weight: 600; font-size: 0.95em; width: 100%; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: background 0.2s; }
         .btn-camera:active { background: #0F766E; }
-        
         .photo-preview-container { display: flex; flex-direction: column; gap: 16px; margin-top: 16px; }
         .photo-item { position: relative; border-radius: 12px; border: 1px solid #E2E8F0; overflow: hidden; background: #FAFAFA; }
         .photo-item img { width: 100%; display: block; }
         .photo-item iframe { width: 100%; height: 300px; border: none; display: block; }
-        .btn-remove-photo {
-            position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,0.7); color: white;
-            border: none; border-radius: 50%; width: 32px; height: 32px; font-size: 16px; cursor: pointer;
-            display: flex; align-items: center; justify-content: center; z-index: 10;
-        }
+        .btn-remove-photo { position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,0.7); color: white; border: none; border-radius: 50%; width: 32px; height: 32px; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 10; }
 
-        .controls {
-            flex-shrink: 0; background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px); display: flex; justify-content: space-between;
-            align-items: center; padding: 15px 20px;
-            padding-bottom: max(15px, env(safe-area-inset-bottom));
-            border-top: 1px solid #E2E8F0; z-index: 10; gap: 10px;
-        }
-        button.nav-btn {
-            background: #0F172A; color: white; border: none;
-            padding: 12px 18px; border-radius: 25px; font-weight: 600;
-            font-size: 0.9em; cursor: pointer; flex: 1; text-align: center;
-        }
+        .controls { flex-shrink: 0; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; padding-bottom: max(15px, env(safe-area-inset-bottom)); border-top: 1px solid #E2E8F0; z-index: 10; gap: 10px; }
+        button.nav-btn { background: #0F172A; color: white; border: none; padding: 12px 18px; border-radius: 25px; font-weight: 600; font-size: 0.9em; cursor: pointer; flex: 1; text-align: center; }
         button.nav-btn:disabled { background: #CBD5E1; color: #94A3B8; cursor: not-allowed; }
         button.print-btn { background: #0D9488; flex: 0.8; }
         .page-indicator { font-weight: 600; color: #475569; font-size: 0.95em; white-space: nowrap; }
+
+        /* 個人雲端管理視窗 */
+        #sync-modal { display: none; position: absolute; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.6); z-index: 100; justify-content: center; align-items: center; }
+        .sync-box { background: white; padding: 24px; border-radius: 16px; width: 85%; max-width: 320px; text-align: center; }
+        .user-profile { background: #F1F5F9; padding: 12px; border-radius: 12px; margin: 15px 0; font-size: 0.95em; color: #1E293B; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        .user-profile img { width: 30px; height: 30px; border-radius: 50%; }
+        .sync-btn-group { display: flex; gap: 10px; margin-top: 15px; }
+        .sync-btn-group button { flex: 1; padding: 12px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; }
+        .btn-upload { background: #0D9488; color: white; }
+        .btn-download { background: #3B82F6; color: white; }
+        .btn-auth { background: #DB4437; color: white; margin-bottom: 15px; width: 100%; }
+        .btn-close { background: #E2E8F0; color: #475569; }
 
         @media print {
             body, html { background-color: white !important; height: auto !important; overflow: visible !important; }
@@ -152,7 +131,7 @@
             .page.active { display: block !important; page-break-after: avoid; }
             body.print-all .page { display: block !important; page-break-after: always; }
             body.print-all .page:last-child { page-break-after: auto; }
-            .controls, .btn-camera, .btn-remove-photo, .save-status { display: none !important; }
+            .controls, .btn-camera, .btn-remove-photo, .save-status, .track-btn { display: none !important; }
             .editable-field, .user-input-section textarea { border: 1px solid #000; background: #fff; height: auto; }
             .photo-item { page-break-inside: avoid; }
         }
@@ -161,147 +140,149 @@
 <body>
 
 <div class="app-container">
-    <div class="header-title">🎫 我的交通行程</div>
+    <div class="header-title">
+        <span>🎫 交通行程</span>
+        <button class="btn-sync" onclick="openSyncModal()" id="header-auth-btn">👤 尚未登入</button>
+    </div>
+    
     <div class="content-scroll" id="transport-book"></div>
+    
     <div class="controls">
         <button class="nav-btn" onclick="prevPage()" id="btn-prev" disabled>上一頁</button>
         <span class="page-indicator" id="page-text">1</span>
         <button class="nav-btn print-btn" onclick="handlePrint()">🖨️ 列印</button>
         <button class="nav-btn" onclick="nextPage()" id="btn-next">下一頁</button>
     </div>
+
+    <!-- 個人雲端管理視窗 -->
+    <div id="sync-modal">
+        <div class="sync-box">
+            <h3 style="margin-top:0; color:#0F172A;">☁️ 我的專屬雲端備份</h3>
+            
+            <div id="auth-section">
+                <p style="font-size:0.9em; color:#64748B;">登入 Google 帳號，將資料安全備份至您專屬的私密空間。</p>
+                <button class="btn-auth sync-btn-group button" onclick="signInWithGoogle()">使用 Google 帳號登入</button>
+            </div>
+
+            <div id="user-section" style="display: none;">
+                <div class="user-profile" id="user-profile-info"></div>
+                <div id="sync-status" style="font-size: 0.85em; color: #10B981; min-height: 20px; margin-bottom: 10px;"></div>
+                <div class="sync-btn-group">
+                    <button class="btn-upload" onclick="uploadToCloud()">上傳至雲端</button>
+                    <button class="btn-download" onclick="downloadFromCloud()">從雲端下載</button>
+                </div>
+                <button class="btn-close" style="width: 100%; padding: 12px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; margin-top: 10px;" onclick="signOut()">登出帳號</button>
+            </div>
+            
+            <button class="btn-close" style="width: 100%; padding: 12px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; margin-top: 10px;" onclick="closeSyncModal()">關閉視窗</button>
+        </div>
+    </div>
 </div>
 
 <script>
+    // === 您的 Firebase 設定 ===
+    const firebaseConfig = {
+        apiKey: "AIzaSyAjv8C7cVWi8QrpEFIPeBCCxXmgVRgbbXY",
+        authDomain: "aurora-trans-1ae73.firebaseapp.com",
+        projectId: "aurora-trans-1ae73",
+        storageBucket: "aurora-trans-1ae73.firebasestorage.app",
+        messagingSenderId: "499232245127",
+        appId: "1:499232245127:web:cf450c6eb3cb8ec3e57f22",
+        measurementId: "G-25CC1Y5CHX"
+    };
+    
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    const storage = firebase.storage();
+    const auth = firebase.auth();
+    const googleProvider = new firebase.auth.GoogleAuthProvider();
+
+    let currentUser = null;
+
+    // 監聽登入狀態改變
+    auth.onAuthStateChanged((user) => {
+        currentUser = user;
+        const headerBtn = document.getElementById('header-auth-btn');
+        const authSection = document.getElementById('auth-section');
+        const userSection = document.getElementById('user-section');
+        const profileInfo = document.getElementById('user-profile-info');
+
+        if (user) {
+            headerBtn.innerHTML = `<img src="${user.photoURL}" style="width:18px; height:18px; border-radius:50%;"> 雲端同步`;
+            authSection.style.display = 'none';
+            userSection.style.display = 'block';
+            profileInfo.innerHTML = `<img src="${user.photoURL}"> <span>${user.displayName} 的專屬空間</span>`;
+        } else {
+            headerBtn.innerHTML = `👤 尚未登入`;
+            authSection.style.display = 'block';
+            userSection.style.display = 'none';
+        }
+    });
+
+    function signInWithGoogle() { auth.signInWithPopup(googleProvider).catch(err => alert("登入失敗：" + err.message)); }
+    function signOut() { auth.signOut().then(() => document.getElementById('sync-status').innerText = ''); }
+
+    // 原始行程資料
     const transports = [
         {
-            date: "10/12 (一) - 10/13 (二)",
-            type: "✈️ 國際航班 (去程)",
-            route: "台北 (TPE) ➔ 慕尼黑 (MUC)",
-            carrier: "長榮航空 (EVA Air) BR071",
-            bookingRef: "待確認",
-            departTime: "23:25",
-            departLoc: "桃園國際機場 (TPE) - T2",
-            arriveTime: "07:35 (+1)",
-            arriveLoc: "慕尼黑機場 (MUC) - T2",
-            seats: "商務艙 D",
-            notes: "飛行總時間約 14h 10m。"
+            date: "10/12 (一) - 10/13 (二)", type: "✈️ 國際航班 (去程)", route: "台北 (TPE) ➔ 慕尼黑 (MUC)",
+            carrier: "長榮航空 (EVA Air) BR071", bookingRef: "待確認", departTime: "23:25", departLoc: "桃園國際機場 (TPE) - T2",
+            arriveTime: "07:35 (+1)", arriveLoc: "慕尼黑機場 (MUC) - T2", seats: "商務艙 D", notes: "飛行總時間約 14h 10m。"
         },
         {
-            date: "10/13 (二)",
-            type: "✈️ 歐洲內陸航班",
-            route: "慕尼黑 (MUC) ➔ 奧斯陸 (OSL)",
-            carrier: "漢莎航空 (Lufthansa) LH 2456",
-            bookingRef: "9JPE61 (Yako/Kueiching)\n7A2LEA (Danny)\n7AAGM4 (Fang)",
-            departTime: "19:50",
-            departLoc: "慕尼黑機場 (MUC) - T2",
-            arriveTime: "22:05",
-            arriveLoc: "奧斯陸加勒穆恩機場 (OSL)",
+            date: "10/13 (二)", type: "✈️ 歐洲內陸航班", route: "慕尼黑 (MUC) ➔ 奧斯陸 (OSL)",
+            carrier: "漢莎航空 (Lufthansa) LH 2456", bookingRef: "9JPE61 (Yako/Kueiching)\n7A2LEA (Danny)\n7AAGM4 (Fang)",
+            departTime: "19:50", departLoc: "慕尼黑機場 (MUC) - T2", arriveTime: "22:05", arriveLoc: "奧斯陸加勒穆恩機場 (OSL)",
             seats: "23A, 23B (Yako/Kueiching)\n22A, 22B (Hsuhsiu/Hsunyi)\n21A, 21B (Danny/Fang)",
             notes: "經濟艙 (Economy Classic)。\n行李：1件 8kg 隨身 + 1件 23kg 託運。\nDanny, Fang, Yako, Kueiching 皆已額外加購一件 23kg 託運行李 (65 EUR)。"
         },
         {
-            date: "10/15 (四)",
-            type: "✈️ 挪威國內航班",
-            route: "奧斯陸 (OSL) ➔ 博德 (BOO)",
-            carrier: "北歐航空 (SAS) SK 4106",
-            bookingRef: "117-2545955864 (Danny)\n117-2545955873 (Fang)",
-            departTime: "11:45",
-            departLoc: "奧斯陸加勒穆恩機場 (OSL)",
-            arriveTime: "13:10",
-            arriveLoc: "博德機場 (BOO)",
+            date: "10/15 (四)", type: "✈️ 挪威國內航班", route: "奧斯陸 (OSL) ➔ 博德 (BOO)",
+            carrier: "北歐航空 (SAS) SK 4106", bookingRef: "117-2545955864 (Danny)\n117-2545955873 (Fang)",
+            departTime: "11:45", departLoc: "奧斯陸加勒穆恩機場 (OSL)", arriveTime: "13:10", arriveLoc: "博德機場 (BOO)",
             seats: "5A, 5B (Yako/Kueiching)\n5E, 5F (Hsuhsiu/Hsunyi)\n6A (Danny), 6B (Fang)",
             notes: "票種為 Standard。\n包含 1 件隨身小包 (Underseat bag) + 1 件登機箱 (Carry-on) + 1 件託運行李。"
         },
         {
-            date: "10/15 (四) - 10/18 (日)",
-            type: "🚗 羅弗敦群島自駕",
-            route: "博德 (BOO) ➔ 斯沃爾韋爾 (SVJ)",
-            carrier: "SIXT 租車",
-            bookingRef: "9733067675",
-            departTime: "10/15 14:00 取車",
-            departLoc: "博德機場 (Bodø Airport) SIXT 櫃台",
-            arriveTime: "10/18 17:00 還車",
-            arriveLoc: "斯沃爾韋爾 (Svolvær) Roald Amundsensgate 8",
-            seats: "Toyota ProAce 8人座",
-            notes: "主駕駛：LAI YAKO。\n方案：All Inclusive Protection (含0自付額車體險與竊盜險)。\n甲地租乙地還 (One-Way)。"
+            date: "10/15 (四) - 10/18 (日)", type: "🚗 羅弗敦群島自駕", route: "博德 (BOO) ➔ 斯沃爾韋爾 (SVJ)",
+            carrier: "SIXT 租車", bookingRef: "9733067675", departTime: "10/15 14:00 取車", departLoc: "博德機場 (Bodø Airport) SIXT 櫃台",
+            arriveTime: "10/18 17:00 還車", arriveLoc: "斯沃爾韋爾 (Svolvær) Roald Amundsensgate 8",
+            seats: "Toyota ProAce 8人座", notes: "主駕駛：LAI YAKO。\n方案：All Inclusive Protection (含0自付額車體險與竊盜險)。\n甲地租乙地還 (One-Way)。"
         },
         {
-            date: "10/15 (四)",
-            type: "⛴️ 跨海渡輪",
-            route: "博德 (Bodø) ➔ 莫斯克內斯 (Moskenes)",
-            carrier: "TORGHATTEN",
-            bookingRef: "CFGKELZY",
-            departTime: "16:45",
-            departLoc: "博德渡輪碼頭 (Bodø ferjekai)",
-            arriveTime: "20:00",
-            arriveLoc: "莫斯克內斯渡輪碼頭 (Moskenes ferjekai)",
-            seats: "成人票 (含座位預訂)",
+            date: "10/15 (四)", type: "⛴️ 跨海渡輪", route: "博德 (Bodø) ➔ 莫斯克內斯 (Moskenes)",
+            carrier: "TORGHATTEN", bookingRef: "CFGKELZY", departTime: "16:45", departLoc: "博德渡輪碼頭 (Bodø ferjekai)",
+            arriveTime: "20:00", arriveLoc: "莫斯克內斯渡輪碼頭 (Moskenes ferjekai)", seats: "成人票 (含座位預訂)",
             notes: "訂票人：KUEI CHING WANG。票號包含 BLYP37L3 等。\n航線：Bodø-Røst-Værøy-Moskenes。\n⚠️ 提醒：車內所有旅客須在登船前透過線上完成資訊登錄。"
         },
         {
-            date: "10/18 (日) - 10/19 (一)",
-            type: "🚢 郵輪航程 (北行)",
-            route: "斯沃爾韋爾 (SVJ) ➔ 特羅姆瑟 (TOS)",
-            carrier: "MS Havila Polaris",
-            bookingRef: "Res# 433405",
-            departTime: "22:15",
-            departLoc: "斯沃爾韋爾碼頭 (Svolvær)",
-            arriveTime: "14:15 (+1)",
-            arriveLoc: "特羅姆瑟碼頭 (Tromsø)",
-            seats: "內側艙房 (Cabin #1, #2, #3)",
+            date: "10/18 (日) - 10/19 (一)", type: "🚢 郵輪航程 (北行)", route: "斯沃爾韋爾 (SVJ) ➔ 特羅姆瑟 (TOS)",
+            carrier: "MS Havila Polaris", bookingRef: "Res# 433405", departTime: "22:15", departLoc: "斯沃爾韋爾碼頭 (Svolvær)",
+            arriveTime: "14:15 (+1)", arriveLoc: "特羅姆瑟碼頭 (Tromsø)", seats: "內側艙房 (Cabin #1, #2, #3)",
             notes: "已付款。共6位成人分配3間艙房(含單人床及上層鋪位、獨立衛浴)。\n包含 10/19 於 Havrand 餐廳的早餐與午餐。"
         },
         {
-            date: "10/21 (三)",
-            type: "✈️ 歐洲內陸航班",
-            route: "特羅姆瑟 (TOS) ➔ 羅瓦涅米 (RVN)",
-            carrier: "芬蘭航空 (Finnair) AY 0542",
-            bookingRef: "9KAWJB",
-            departTime: "10:30",
-            departLoc: "特羅姆瑟機場 (TOS)",
-            arriveTime: "12:50",
-            arriveLoc: "羅瓦涅米機場 (RVN)",
-            seats: "未選位",
+            date: "10/21 (三)", type: "✈️ 歐洲內陸航班", route: "特羅姆瑟 (TOS) ➔ 羅瓦涅米 (RVN)",
+            carrier: "芬蘭航空 (Finnair) AY 0542", bookingRef: "9KAWJB", departTime: "10:30", departLoc: "特羅姆瑟機場 (TOS)",
+            arriveTime: "12:50", arriveLoc: "羅瓦涅米機場 (RVN)", seats: "未選位",
             notes: "票號 105-2493231164 等。\n行李：1件 23kg 託運 + 1件 8kg 手提行李。\n起飛前 36 小時可線上 Check-in。"
         },
         {
-            date: "10/22 (四) - 10/23 (五)",
-            type: "🚆 芬蘭國鐵 VR (北極特快車)",
-            route: "羅瓦涅米 (RVN) ➔ 赫爾辛基 (HEL)",
-            carrier: "VR 火車車次 PYO 266",
-            bookingRef: "TUT-TH5-LEV...",
-            departTime: "17:52",
-            departLoc: "羅瓦涅米火車站",
-            arriveTime: "06:27 (+1)",
-            arriveLoc: "赫爾辛基中央車站",
-            seats: "47 車廂上層 (Coach 47, upstairs)\n臥鋪房號：209/210, 211/212, 213/214",
+            date: "10/22 (四) - 10/23 (五)", type: "🚆 芬蘭國鐵 VR (北極特快車)", route: "羅瓦涅米 (RVN) ➔ 赫爾辛基 (HEL)",
+            carrier: "VR 火車車次 PYO 266", bookingRef: "TUT-TH5-LEV...", departTime: "17:52", departLoc: "羅瓦涅米火車站",
+            arriveTime: "06:27 (+1)", arriveLoc: "赫爾辛基中央車站", seats: "47 車廂上層 (Coach 47, upstairs)\n臥鋪房號：209/210, 211/212, 213/214",
             notes: "訂購房型：完整臥鋪艙房 (Whole cabin)。\nJacob & Jassica (209,210), Sissy & Sugar (211,212), Danny & Fang (213,214)。"
         },
         {
-            date: "10/26 (一)",
-            type: "✈️ 歐洲內陸航班",
-            route: "赫爾辛基 (HEL) ➔ 慕尼黑 (MUC)",
-            carrier: "漢莎航空 (Lufthansa) LH 2461",
-            bookingRef: "9JPE61 (Yako/Kueiching)\n7A2LEA (Danny)\n7AAGM4 (Fang)",
-            departTime: "12:45",
-            departLoc: "赫爾辛基萬塔機場 (HEL)",
-            arriveTime: "14:25",
-            arriveLoc: "慕尼黑機場 (MUC) - T2",
-            seats: "8A, 8B (Yako/Kueiching)\n8F, 8E (Hsuhsiu/Hsunyi)\n9A (Danny), 9B (Fang)",
-            notes: "經濟艙 (Economy Classic)。機上提供零食。"
+            date: "10/26 (一)", type: "✈️ 歐洲內陸航班", route: "赫爾辛基 (HEL) ➔ 慕尼黑 (MUC)",
+            carrier: "漢莎航空 (Lufthansa) LH 2461", bookingRef: "9JPE61 (Yako/Kueiching)\n7A2LEA (Danny)\n7AAGM4 (Fang)",
+            departTime: "12:45", departLoc: "赫爾辛基萬塔機場 (HEL)", arriveTime: "14:25", arriveLoc: "慕尼黑機場 (MUC) - T2",
+            seats: "8A, 8B (Yako/Kueiching)\n8F, 8E (Hsuhsiu/Hsunyi)\n9A (Danny), 9B (Fang)", notes: "經濟艙 (Economy Classic)。機上提供零食。"
         },
         {
-            date: "10/27 (二) - 10/28 (三)",
-            type: "✈️ 國際航班 (回程)",
-            route: "慕尼黑 (MUC) ➔ 台北 (TPE)",
-            carrier: "長榮航空 (EVA Air) BR072",
-            bookingRef: "待確認",
-            departTime: "11:30",
-            departLoc: "慕尼黑機場 (MUC) - T2",
-            arriveTime: "06:30 (+1)",
-            arriveLoc: "桃園國際機場 (TPE) - T2",
-            seats: "商務艙 D",
-            notes: "飛行總時間約 12h 00m。"
+            date: "10/27 (二) - 10/28 (三)", type: "✈️ 國際航班 (回程)", route: "慕尼黑 (MUC) ➔ 台北 (TPE)",
+            carrier: "長榮航空 (EVA Air) BR072", bookingRef: "待確認", departTime: "11:30", departLoc: "慕尼黑機場 (MUC) - T2",
+            arriveTime: "06:30 (+1)", arriveLoc: "桃園國際機場 (TPE) - T2", seats: "商務艙 D", notes: "飛行總時間約 12h 00m。"
         }
     ];
 
@@ -310,17 +291,60 @@
     const container = document.getElementById('transport-book');
     let saveTimeout;
 
+    // 防抖與儲存
+    function debounce(func, wait) {
+        let timeout;
+        return function(...args) { clearTimeout(timeout); timeout = setTimeout(() => func.apply(this, args), wait); };
+    }
+    
     function saveData(index, field, value) {
         localStorage.setItem(`trans-${field}-${index}`, value);
         showSaveStatus(index);
     }
+    const debouncedSaveData = debounce((index, field, value) => { saveData(index, field, value); }, 500);
 
+    function showSaveStatus(index) {
+        const statusEl = document.getElementById(`save-status-${index}`);
+        if (statusEl) {
+            statusEl.innerText = "✓ 已存至本機"; statusEl.style.opacity = 1;
+            clearTimeout(saveTimeout); saveTimeout = setTimeout(() => { statusEl.style.opacity = 0; }, 2000);
+        }
+    }
+
+    // 模擬擷取航班資料 (更新為包含航站)
+    function simulateFetchFlightData(index, flightNum) {
+        const btn = document.getElementById(`autofill-btn-${index}`);
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '⏳ 聯網抓取中...';
+        btn.disabled = true;
+        
+        setTimeout(() => {
+            const mockTerminal = ["T1", "T2", "T3"][Math.floor(Math.random() * 3)];
+            const mockGate = ["C4", "D7", "A2", "B15", "E3"][Math.floor(Math.random() * 5)];
+            const mockTime = ["22:45", "19:10", "11:05", "09:50"][Math.floor(Math.random() * 4)];
+            
+            const terminalInput = document.getElementById(`terminal-${index}`);
+            const gateInput = document.getElementById(`gate-${index}`);
+            const boardingInput = document.getElementById(`boarding-${index}`);
+            
+            if(terminalInput) terminalInput.value = mockTerminal;
+            if(gateInput) gateInput.value = mockGate;
+            if(boardingInput) boardingInput.value = mockTime;
+            
+            saveData(index, 'terminal', mockTerminal);
+            saveData(index, 'gate', mockGate);
+            saveData(index, 'boarding', mockTime);
+            
+            btn.innerHTML = '✅ 已自動填寫';
+            setTimeout(() => { btn.innerHTML = originalText; btn.disabled = false; }, 3000);
+        }, 1500);
+    }
+
+    // 圖片處理
     function readFileAsDataURL(file) {
         return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = e => resolve(e.target.result);
-            reader.onerror = reject;
-            reader.readAsDataURL(file);
+            const reader = new FileReader(); reader.onload = e => resolve(e.target.result);
+            reader.onerror = reject; reader.readAsDataURL(file);
         });
     }
 
@@ -328,79 +352,43 @@
         return new Promise((resolve, reject) => {
             const img = new Image();
             img.onload = function() {
-                const canvas = document.createElement('canvas');
-                const MAX_WIDTH = 800; 
-                let width = img.width;
-                let height = img.height;
+                const canvas = document.createElement('canvas'); const MAX_WIDTH = 800; 
+                let width = img.width, height = img.height;
                 if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
                 canvas.width = width; canvas.height = height;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0, width, height);
+                canvas.getContext('2d').drawImage(img, 0, 0, width, height);
                 resolve(canvas.toDataURL('image/jpeg', 0.6)); 
-            };
-            img.onerror = reject;
-            img.src = dataUrl;
+            }; img.onerror = reject; img.src = dataUrl;
         });
     }
 
     async function handlePhotoUpload(event, index) {
-        const files = event.target.files;
-        if (!files || files.length === 0) return;
-
+        const files = event.target.files; if (!files || files.length === 0) return;
         let savedPhotos = JSON.parse(localStorage.getItem(`trans-photos-arr-${index}`) || '[]');
-
         for (let i = 0; i < files.length; i++) {
             const file = files[i];
-            const isPDF = file.type === 'application/pdf';
-
             try {
                 const dataUrl = await readFileAsDataURL(file);
-                if (isPDF) {
-                    savedPhotos.push({ type: 'pdf', data: dataUrl });
-                } else {
-                    const compressedDataUrl = await compressImage(dataUrl);
-                    savedPhotos.push({ type: 'image', data: compressedDataUrl });
-                }
-            } catch (err) {
-                alert("處理檔案時發生錯誤！");
-            }
+                if (file.type === 'application/pdf') { savedPhotos.push({ type: 'pdf', data: dataUrl }); } 
+                else { savedPhotos.push({ type: 'image', data: await compressImage(dataUrl) }); }
+            } catch (err) { alert("處理檔案時發生錯誤！"); }
         }
-
         try {
             localStorage.setItem(`trans-photos-arr-${index}`, JSON.stringify(savedPhotos));
-            renderPhotos(index, savedPhotos);
-            showSaveStatus(index);
-        } catch (err) {
-            alert("手機瀏覽器儲存空間不足，無法儲存所有檔案！建議刪除舊檔案或將 PDF 截圖後上傳。");
-        }
-        
+            renderPhotos(index, savedPhotos); showSaveStatus(index);
+        } catch (err) { alert("手機瀏覽器儲存空間不足，無法儲存所有檔案！"); }
         event.target.value = '';
     }
 
     function renderPhotos(index, photos) {
         const previewContainer = document.getElementById(`photo-preview-container-${index}`);
-        previewContainer.innerHTML = ''; 
-
+        if(!previewContainer) return; previewContainer.innerHTML = ''; 
         photos.forEach((photo, photoIndex) => {
-            const itemDiv = document.createElement('div');
-            itemDiv.className = 'photo-item';
-            
-            const btn = document.createElement('button');
-            btn.className = 'btn-remove-photo';
-            btn.innerHTML = '✕';
-            btn.onclick = () => removePhoto(index, photoIndex);
-            itemDiv.appendChild(btn);
-
-            if (photo.type === 'pdf') {
-                const iframe = document.createElement('iframe');
-                iframe.src = photo.data;
-                itemDiv.appendChild(iframe);
-            } else {
-                const img = document.createElement('img');
-                img.src = photo.data;
-                itemDiv.appendChild(img);
-            }
-            
+            const itemDiv = document.createElement('div'); itemDiv.className = 'photo-item';
+            const btn = document.createElement('button'); btn.className = 'btn-remove-photo'; btn.innerHTML = '✕';
+            btn.onclick = () => removePhoto(index, photoIndex); itemDiv.appendChild(btn);
+            if (photo.type === 'pdf') { const iframe = document.createElement('iframe'); iframe.src = photo.data; itemDiv.appendChild(iframe); } 
+            else { const img = document.createElement('img'); img.src = photo.data; itemDiv.appendChild(img); }
             previewContainer.appendChild(itemDiv);
         });
     }
@@ -414,20 +402,73 @@
         }
     }
 
-    function showSaveStatus(index) {
-        const statusEl = document.getElementById(`save-status-${index}`);
-        if (statusEl) {
-            statusEl.innerText = "✓ 已自動存檔";
-            statusEl.style.opacity = 1;
-            clearTimeout(saveTimeout);
-            saveTimeout = setTimeout(() => { statusEl.style.opacity = 0; }, 2000);
-        }
+    // 專屬雲端同步
+    function openSyncModal() { document.getElementById('sync-modal').style.display = 'flex'; document.getElementById('sync-status').innerText = ''; }
+    function closeSyncModal() { document.getElementById('sync-modal').style.display = 'none'; }
+    
+    function getTripDataFromLocal() {
+        let data = {};
+        for (let i = 0; i < localStorage.length; i++) { const key = localStorage.key(i); if (key.startsWith('trans-')) data[key] = localStorage.getItem(key); }
+        return data;
     }
 
+    async function uploadToCloud() {
+        if (!currentUser) return alert("請先登入 Google 帳號！");
+        const uid = currentUser.uid;
+        const statusEl = document.getElementById('sync-status');
+        statusEl.innerText = "⏳ 正在處理照片與備份，請稍候..."; statusEl.style.color = "#F59E0B";
+        
+        try {
+            const localData = getTripDataFromLocal();
+            const textData = {}; const photoPromises = [];
+
+            for (const [key, value] of Object.entries(localData)) {
+                if (key.includes('photos-arr')) {
+                    let photos = JSON.parse(value || '[]'); let uploadedPhotos = [];
+                    for (let i = 0; i < photos.length; i++) {
+                        let photo = photos[i];
+                        if (photo.data && photo.data.startsWith('data:')) {
+                            statusEl.innerText = `⏳ 上傳圖檔中...`;
+                            const fileRef = storage.ref(`users/${uid}/photos/${key}_file_${Date.now()}_${i}`);
+                            await fileRef.putString(photo.data, 'data_url');
+                            uploadedPhotos.push({ type: photo.type, data: await fileRef.getDownloadURL() });
+                        } else uploadedPhotos.push(photo);
+                    }
+                    localStorage.setItem(key, JSON.stringify(uploadedPhotos));
+                    photoPromises.push(db.collection("users").doc(uid).collection("photos").doc(key).set({ data: JSON.stringify(uploadedPhotos) }));
+                } else textData[key] = value;
+            }
+            
+            await db.collection("users").doc(uid).set({ textData, lastUpdated: firebase.firestore.FieldValue.serverTimestamp() });
+            await Promise.all(photoPromises);
+            statusEl.innerText = "✅ 成功備份至您的私有雲端！"; statusEl.style.color = "#10B981";
+        } catch (error) { statusEl.innerText = "❌ 上傳 বোর্傳失敗，請檢查網路或權限規則。"; statusEl.style.color = "#EF4444"; }
+    }
+
+    async function downloadFromCloud() {
+        if (!currentUser) return alert("請先登入 Google 帳號！");
+        const uid = currentUser.uid;
+        const statusEl = document.getElementById('sync-status');
+        statusEl.innerText = "⏳ 正在從私有雲端下載，請稍候..."; statusEl.style.color = "#3B82F6";
+        
+        try {
+            const docRef = await db.collection("users").doc(uid).get();
+            if (docRef.exists) {
+                const cloudData = docRef.data().textData;
+                for (const [key, value] of Object.entries(cloudData)) localStorage.setItem(key, value);
+            } else { statusEl.innerText = "⚠️ 您的雲端空間目前沒有備份資料。"; statusEl.style.color = "#F59E0B"; return; }
+
+            const photoSnapshots = await db.collection("users").doc(uid).collection("photos").get();
+            photoSnapshots.forEach(doc => { localStorage.setItem(doc.id, doc.data().data); });
+
+            statusEl.innerText = "✅ 下載完成！畫面即將更新..."; statusEl.style.color = "#10B981";
+            setTimeout(() => { renderBook(); closeSyncModal(); }, 1000);
+        } catch (error) { statusEl.innerText = "❌ 下載失敗，請檢查網路。"; statusEl.style.color = "#EF4444"; }
+    }
+
+    // 畫面渲染與列印功能
     function renderBook() {
         let html = '';
-
-        // 建立首頁行程明細表的字串 (完全避免使用會造成錯誤的巢狀模板語法)
         let summaryListHTML = '';
         transports.forEach(function(t) {
             summaryListHTML += '<div style="margin-bottom: 12px; border-bottom: 1px dashed #E2E8F0; padding-bottom: 12px;">';
@@ -437,7 +478,6 @@
             summaryListHTML += '</div>';
         });
 
-        // 首頁
         html += '<div class="page active" id="page-0">' +
                 '<h2 class="route-title">🗺️ 北歐跨國交通總覽</h2>' +
                 '<div class="info-card">' +
@@ -446,32 +486,60 @@
                 '</div>' +
                 '<div class="notes-section" style="border-left-color: #0D9488; background: #F0FDFA;">' +
                 '<strong>💡 系統功能提示：</strong><br>' +
-                '• <b>可編輯欄位</b>：每頁的「訂位代號」與「座位」皆可點擊直接修改。<br>' +
+                '• <b>雲端備份</b>：點擊右上角登入，將資料自動加密備份至個人專屬空間。<br>' +
                 '• <b>多檔案上傳</b>：點擊上傳按鈕，可「一次選擇多張照片或文件」上傳存檔。<br>' +
                 '• <b>智慧列印</b>：在首頁點擊列印將匯出全本手冊；在各分頁點擊，則僅匯出該段行程。' +
                 '</div>' +
                 '</div>';
 
-        // 交通分頁
         transports.forEach((item, index) => {
             let pageId = index + 1;
-            let icon = '📍';
-            if (item.type.includes('✈️')) icon = '🛫';
-            if (item.type.includes('🚆')) icon = '🚉';
-            if (item.type.includes('🚢') || item.type.includes('⛴️')) icon = '⚓';
-            if (item.type.includes('🚗')) icon = '🚘';
+            let icon = '📍', arriveIcon = '📍';
+            if (item.type.includes('✈️')) { icon = '🛫'; arriveIcon = '🛬'; }
+            if (item.type.includes('🚆')) { icon = '🚉'; arriveIcon = '🚉'; }
+            if (item.type.includes('🚢') || item.type.includes('⛴️')) { icon = '⚓'; arriveIcon = '⚓'; }
+            if (item.type.includes('🚗')) { icon = '🚘'; arriveIcon = '🚘'; }
 
-            let arriveIcon = '📍';
-            if (item.type.includes('✈️')) arriveIcon = '🛬';
-            if (item.type.includes('🚆')) arriveIcon = '🚉';
-            if (item.type.includes('🚢') || item.type.includes('⛴️')) arriveIcon = '⚓';
-            if (item.type.includes('🚗')) arriveIcon = '🚘';
+            // 判斷如果是飛機，就加入追蹤按鈕與三個登機相關的輸入欄位
+            let flightActionGroup = '';
+            let gateBoardingHTML = '';
+
+            if (item.type.includes('✈️')) {
+                let match = item.carrier.match(/[A-Z0-9]{2}\s?\d{2,4}/);
+                let flightNum = match ? match[0].replace(/\s/g, '') : item.carrier;
+                
+                flightActionGroup = `
+                    <div style="display: flex; gap: 10px; margin-bottom: 16px;">
+                        <a href="https://www.google.com/search?q=航班狀態+${flightNum}" target="_blank" class="track-btn" style="flex: 1;">📡 Google 查狀態</a>
+                        <button id="autofill-btn-${index}" class="track-btn btn-auto-fill" onclick="simulateFetchFlightData(${index}, '${flightNum}')" style="flex: 1;">🔄 自動載入(模擬)</button>
+                    </div>
+                `;
+
+                gateBoardingHTML = `
+                    <div class="info-row" style="flex-direction: row; gap: 8px;">
+                        <div style="flex: 1;">
+                            <span class="info-label">✏️ 航站</span>
+                            <input type="text" class="editable-field" style="padding: 10px 5px; text-align: center;" id="terminal-${index}" oninput="debouncedSaveData(${index}, 'terminal', this.value)" placeholder="T2">
+                        </div>
+                        <div style="flex: 1;">
+                            <span class="info-label">✏️ 閘門</span>
+                            <input type="text" class="editable-field" style="padding: 10px 5px; text-align: center;" id="gate-${index}" oninput="debouncedSaveData(${index}, 'gate', this.value)" placeholder="C4">
+                        </div>
+                        <div style="flex: 1.2;">
+                            <span class="info-label">✏️ 登機時間</span>
+                            <input type="text" class="editable-field" style="padding: 10px 5px; text-align: center;" id="boarding-${index}" oninput="debouncedSaveData(${index}, 'boarding', this.value)" placeholder="22:45">
+                        </div>
+                    </div>
+                `;
+            }
 
             html += `
                 <div class="page" id="page-${pageId}">
                     <div class="type-badge">${item.type} | ${item.date}</div>
                     <h2 class="route-title">${item.route}</h2>
                     
+                    ${flightActionGroup}
+
                     <div class="info-card timeline-box">
                         <div class="time-point">
                             <div class="time-icon">${icon}</div>
@@ -497,14 +565,15 @@
                             <span class="info-value-static">${item.carrier}</span>
                         </div>
                         
+                        ${gateBoardingHTML}
+
                         <div class="info-row">
                             <span class="info-label">✏️ 訂位代號 / 憑證號</span>
-                            <textarea class="editable-field" id="ref-${index}" oninput="saveData(${index}, 'ref', this.value)" placeholder="請輸入訂位代號..."></textarea>
+                            <textarea class="editable-field" id="ref-${index}" oninput="debouncedSaveData(${index}, 'ref', this.value)" placeholder="請輸入訂位代號..."></textarea>
                         </div>
-                        
                         <div class="info-row" style="border-bottom: none; padding-bottom: 0;">
                             <span class="info-label">✏️ 座位 / 艙房分配</span>
-                            <textarea class="editable-field" id="seat-${index}" oninput="saveData(${index}, 'seat', this.value)" placeholder="請輸入座位資訊..."></textarea>
+                            <textarea class="editable-field" id="seat-${index}" oninput="debouncedSaveData(${index}, 'seat', this.value)" placeholder="請輸入座位資訊..."></textarea>
                         </div>
                     </div>
 
@@ -514,19 +583,16 @@
 
                     <div class="user-input-section">
                         <div style="font-weight: 600; color: #64748B; margin-bottom: 8px;">✏️ 個人補充事項</div>
-                        <textarea id="note-${index}" oninput="saveData(${index}, 'note', this.value)" placeholder="點此輸入您的交通備忘錄... (如：登機門號碼、集合地點等)"></textarea>
+                        <textarea id="note-${index}" oninput="debouncedSaveData(${index}, 'note', this.value)" placeholder="點此輸入您的交通備忘錄... (如：行李重量、集合點等)"></textarea>
                         <span class="save-status" id="save-status-${index}"></span>
                     </div>
 
                     <div class="photo-section">
                         <h3 style="margin: 0 0 10px 0; font-size: 1.05em; color: #0F172A;">📸 票券與文件存檔 (可選多張)</h3>
-                        
                         <input type="file" id="file-upload-${index}" accept="image/*,application/pdf" multiple style="display:none;" onchange="handlePhotoUpload(event, ${index})">
-                        
                         <button class="btn-camera" onclick="document.getElementById('file-upload-${index}').click()">
                             ➕ 點此選擇相簿照片、文件或拍照
                         </button>
-                        
                         <div class="photo-preview-container" id="photo-preview-container-${index}"></div>
                     </div>
                 </div>
@@ -535,21 +601,22 @@
         
         container.innerHTML = html;
 
-        // 載入 localStorage 資料
+        // 載入所有欄位的資料
         transports.forEach((item, index) => {
-            const savedRef = localStorage.getItem(`trans-ref-${index}`);
-            document.getElementById(`ref-${index}`).value = savedRef !== null ? savedRef : item.bookingRef;
-
-            const savedSeat = localStorage.getItem(`trans-seat-${index}`);
-            document.getElementById(`seat-${index}`).value = savedSeat !== null ? savedSeat : item.seats;
-
-            const savedNote = localStorage.getItem(`trans-note-${index}`);
-            if (savedNote) document.getElementById(`note-${index}`).value = savedNote;
+            const fields = ['ref', 'seat', 'note', 'terminal', 'gate', 'boarding'];
+            fields.forEach(f => {
+                const val = localStorage.getItem(`trans-${f}-${index}`);
+                const el = document.getElementById(`${f}-${index}`);
+                if (val !== null && el) {
+                    el.value = val;
+                } else if (val === null && el && (f === 'ref' || f === 'seat')) {
+                    // 若沒有存過，回填原始預設資料
+                    el.value = f === 'ref' ? item.bookingRef : item.seats;
+                }
+            });
 
             const savedPhotosArr = JSON.parse(localStorage.getItem(`trans-photos-arr-${index}`) || '[]');
-            if (savedPhotosArr.length > 0) {
-                renderPhotos(index, savedPhotosArr);
-            }
+            if (savedPhotosArr.length > 0) renderPhotos(index, savedPhotosArr);
         });
 
         updateButtons();
@@ -580,12 +647,16 @@
         }
     }
 
+    // 觸控滑動手勢
+    let touchStartX = 0; let touchEndX = 0;
+    const appContainer = document.querySelector('.app-container');
+    appContainer.addEventListener('touchstart', e => { touchStartX = e.changedTouches[0].screenX; }, {passive: true});
+    appContainer.addEventListener('touchend', e => { touchEndX = e.changedTouches[0].screenX; handleSwipe(); }, {passive: true});
+    function handleSwipe() { const swipeThreshold = 50; if (touchEndX < touchStartX - swipeThreshold) nextPage(); if (touchEndX > touchStartX + swipeThreshold) prevPage(); }
+
     function handlePrint() {
-        if (currentPage === 0) {
-            document.body.classList.add('print-all');
-        } else {
-            document.body.classList.remove('print-all');
-        }
+        if (currentPage === 0) { document.body.classList.add('print-all'); } 
+        else { document.body.classList.remove('print-all'); }
         setTimeout(() => { window.print(); }, 100);
     }
 
