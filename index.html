@@ -219,7 +219,22 @@
         }
     });
 
-    function signInWithGoogle() { auth.signInWithPopup(googleProvider).catch(err => alert("登入失敗：" + err.message)); }
+    // 🌟 修改：自動偵測設備，手機使用跳轉登入以避開彈出視窗阻擋
+    function signInWithGoogle() { 
+        if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
+            auth.signInWithRedirect(googleProvider);
+        } else {
+            auth.signInWithPopup(googleProvider).catch(err => alert("登入失敗：" + err.message));
+        }
+    }
+
+    // 🌟 捕捉手機端跳轉登入後的潛在錯誤
+    auth.getRedirectResult().catch(err => {
+        if (err.code !== 'auth/redirect-cancelled-by-user') {
+            alert("手機登入發生錯誤：" + err.message);
+        }
+    });
+
     function signOut() { auth.signOut().then(() => document.getElementById('sync-status').innerText = ''); }
 
     // 原始行程資料
@@ -442,7 +457,7 @@
             await db.collection("users").doc(uid).set({ textData, lastUpdated: firebase.firestore.FieldValue.serverTimestamp() });
             await Promise.all(photoPromises);
             statusEl.innerText = "✅ 成功備份至您的私有雲端！"; statusEl.style.color = "#10B981";
-        } catch (error) { statusEl.innerText = "❌ 上傳 বোর্傳失敗，請檢查網路或權限規則。"; statusEl.style.color = "#EF4444"; }
+        } catch (error) { statusEl.innerText = "❌ 上傳失敗，請檢查網路或權限規則。"; statusEl.style.color = "#EF4444"; }
     }
 
     async function downloadFromCloud() {
